@@ -22,6 +22,7 @@ const FILES = [
   'js/store.js',
   'js/model.js',
   'js/layouts.js',
+  'js/random-layout.js',
   'js/page-sizes.js',
   'js/shapes.js',
   'js/geometry.js',

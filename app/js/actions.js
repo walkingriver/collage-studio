@@ -2,10 +2,12 @@
 // Every command the toolbar, menus, keyboard shortcuts and panels can run.
 
 import {
-  newProject, newPage, newTextBox, newTextContent, applyLayout, placePhoto, autoFill, removePhoto,
-  duplicatePage, photoUsage, findPage, uid,
+  newProject, newPage, newTextBox, newTextContent, newPhotoContent, applyLayout, placePhoto, autoFill, removePhoto,
+  duplicatePage, photoUsage, findPage, uid, cellFromLayout, resetCrop, suggestFrame,
 } from './model.js';
-import { frameRect } from './geometry.js';
+import { frameRect, contentRect, orientedSize } from './geometry.js';
+import { randomMosaic, randomScatter } from './random-layout.js';
+import { PRINTS } from './layouts.js';
 import { packProject, unpackProject, PROJECT_MIME } from './io/project-file.js';
 import { pickPhotoFiles, pickProjectFile, saveBlob, PROJECT_TYPES, JPEG_TYPES, safeName, canPickFolder, pickFolder, writeInFolder, download } from './io/fs.js';
 import { recent } from './io/db.js';
@@ -21,6 +23,7 @@ import { pageThumbDataUrl } from './ui/thumbs.js';
 /** @typedef {import('./model.js').Project} Project */
 
 const RECENT_LIMIT = 12;
+export const SURPRISE_MAX = 20;
 
 /** @param {App} app */
 export function createActions(app) {
@@ -305,6 +308,56 @@ export function createActions(app) {
         const i = p.textBoxes.findIndex((b) => b.id === boxId);
         if (i >= 0) p.textBoxes.push(...p.textBoxes.splice(i, 1));
       });
+    },
+
+    // ---------- surprise me ----------
+
+    /** How many slots "Surprise me" makes: the user's choice, else what's on the page, else some tray photos. */
+    surpriseCount() {
+      if (app.ui.surpriseCount) return app.ui.surpriseCount;
+      const filled = app.page.cells.filter((c) => c.content).length;
+      if (filled) return filled;
+      const used = photoUsage(store.doc);
+      const spare = Object.keys(store.doc.photos).filter((id) => !used.has(id)).length;
+      return Math.min(SURPRISE_MAX, spare > 1 ? Math.min(spare, 6) : 4);
+    },
+
+    /**
+     * Makes a new random layout for this page. Everything already on the page stays on it;
+     * extra slots are filled with photos not used yet. Click again for another arrangement.
+     * @param {{style?: 'mosaic'|'scatter', count?: number}} [o]
+     */
+    surprise(o = {}) {
+      app.stage.stopEditing();
+      if (app.ui.mode === 'crop') a.exitCrop(true);
+      const doc = store.doc, page = app.page;
+      const style = o.style ?? app.ui.surpriseStyle;
+      const n = Math.max(1, Math.min(SURPRISE_MAX, o.count ?? a.surpriseCount()));
+      const onPage = page.cells.map((c) => c.content).filter(Boolean);
+      const used = photoUsage(doc);
+      const spare = Object.keys(doc.photos).filter((id) => !used.has(id)).map(newPhotoContent);
+      const items = [...onPage.filter((c) => c.kind === 'text'), ...onPage.filter((c) => c.kind === 'photo'), ...spare].slice(0, n);
+      const aspect = (/** @type {import('./model.js').CellContent} */ c) => {
+        if (c.kind === 'text') return 3.2;
+        const m = doc.photos[c.photoId];
+        const o2 = m ? orientedSize(m, c.rotate) : { w: 4, h: 3 };
+        return o2.w / o2.h;
+      };
+      const want = [...items.map(aspect), ...Array(n - items.length).fill(4 / 3)];
+      const area = contentRect(page, doc.pageSize);
+      const cells = (style === 'scatter' ? randomScatter : randomMosaic)(n, area.w / area.h, want);
+      const leftOver = onPage.filter((c) => !items.includes(c));
+      app.editPage((p) => {
+        p.layoutId = 'surprise';
+        p.overlap = style === 'scatter';
+        if (style === 'scatter') suggestFrame(p.frame, PRINTS);
+        p.cells = cells.map((c) => cellFromLayout(c, resetCrop(items[c.item] ?? null)));
+      });
+      app.select(null);
+      const lostPhotos = leftOver.filter((c) => c.kind === 'photo').length, lostTexts = leftOver.length - lostPhotos;
+      const undo = { action: 'Undo', onAction: () => store.undo() };
+      if (lostPhotos) toast(`${lostPhotos} photo${lostPhotos > 1 ? 's' : ''} didn't fit and went back to your photos.`, undo);
+      if (lostTexts) toast(`${lostTexts} text slot${lostTexts > 1 ? 's' : ''} didn't fit.`, undo);
     },
 
     // ---------- pages ----------

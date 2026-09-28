@@ -21,6 +21,7 @@ app/                  ← the whole app; deploy this folder
   css/  fonts/  icons/  vendor/
   js/
     model.js store.js layouts.js shapes.js geometry.js text.js adjust.js   pure logic (tested in Node)
+    random-layout.js  "Surprise me": random mosaics and scattered prints
     render.js         the one renderer used for screen, thumbnails, JPEG and print/PDF
     interact/stage.js the editor canvas (drag, swap, crop, text boxes, drops)
     ui/               toolbar, pages strip, inspector, tray, dialogs, start screen

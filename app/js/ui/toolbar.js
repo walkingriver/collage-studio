@@ -23,6 +23,7 @@ export function createToolbar(app) {
     ${tool('photos', 'image-plus', 'Add photos', 'Add photos from your computer')}
     ${tool('text', 'type', 'Add text', 'Add a text box you can put anywhere')}
     ${tool('layout', 'layout-grid', 'Layout', 'Choose a different layout for this page')}
+    ${tool('surprise', 'dices', 'Surprise me', 'Make a random layout from the photos on this page. Click again for another.')}
     <div class="spacer"></div>
     <input class="title-input" aria-label="Collage name" maxlength="80" spellcheck="false">
     <span class="dirty-dot" title="Unsaved changes" hidden></span>
@@ -47,6 +48,7 @@ export function createToolbar(app) {
       case 'photos': return a.addPhotos(null);
       case 'text': return a.addText();
       case 'layout': return a.changeLayout();
+      case 'surprise': return a.surprise();
       case 'print': return a.print();
       case 'pdf': return a.print({ pdf: true });
       case 'jpeg': return a.exportJpeg();

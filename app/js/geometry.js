@@ -26,6 +26,8 @@ export function contentRect(page, size) {
 /**
  * A cell's rect in points. Edges shared with other cells are inset by half the gap,
  * so the outer edges line up with the margins and inner gaps are all the same.
+ * Pages whose slots overlap on purpose get no gap.
+ * The rect is before the slot's tilt (see cellRotation), which turns it around its center.
  * @param {Page} page
  * @param {PageSize} size
  * @param {Cell} cell
@@ -33,7 +35,7 @@ export function contentRect(page, size) {
  */
 export function cellRect(page, size, cell) {
   const c = contentRect(page, size);
-  const g = Math.max(0, page.gapPt) / 2;
+  const g = page.overlap ? 0 : Math.max(0, page.gapPt) / 2;
   const r = cell.rect;
   let x0 = c.x + r.x * c.w, y0 = c.y + r.y * c.h;
   let x1 = c.x + (r.x + r.w) * c.w, y1 = c.y + (r.y + r.h) * c.h;
@@ -57,6 +59,37 @@ export function frameRect(page, size, cell) {
   if (!getShape(cell.shape).keepAspect) return r;
   const s = Math.min(r.w, r.h);
   return { x: r.x + (r.w - s) / 2, y: r.y + (r.h - s) / 2, w: s, h: s };
+}
+
+/** Slot tilt in degrees (clockwise). @param {Cell} cell */
+export function cellRotation(cell) {
+  return cell.rotation ?? 0;
+}
+
+/**
+ * Turns a point around a center by `deg` degrees (clockwise on screen).
+ * @param {number} px
+ * @param {number} py
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} deg
+ */
+export function rotateAround(px, py, cx, cy, deg) {
+  if (!deg) return { x: px, y: py };
+  const a = (deg * Math.PI) / 180;
+  const dx = px - cx, dy = py - cy;
+  return { x: cx + dx * Math.cos(a) - dy * Math.sin(a), y: cy + dx * Math.sin(a) + dy * Math.cos(a) };
+}
+
+/**
+ * A page point in a tilted frame's own (untilted) coordinates.
+ * @param {Rect} frame
+ * @param {number} deg
+ * @param {number} px
+ * @param {number} py
+ */
+export function toFrameLocal(frame, deg, px, py) {
+  return rotateAround(px, py, frame.x + frame.w / 2, frame.y + frame.h / 2, -deg);
 }
 
 /**

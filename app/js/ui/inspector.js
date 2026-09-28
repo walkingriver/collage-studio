@@ -14,7 +14,8 @@ import { FONTS } from '../font-catalog.js';
 import { getLayout } from '../layouts.js';
 import { describeSize, orient, orientationOf } from '../page-sizes.js';
 import { defaultAdjust, findPage, findCell, findTextBox } from '../model.js';
-import { drawLayoutThumb } from './thumbs.js';
+import { drawLayoutShapeThumb } from './thumbs.js';
+import { SURPRISE_MAX } from '../actions.js';
 import { loadAllFonts } from '../fonts.js';
 import { MAX_ZOOM } from '../geometry.js';
 
@@ -63,22 +64,33 @@ export function createInspector(app) {
   };
 
   /**
+   * The object a bound path refers to. Paths starting with `cell.` address the slot itself
+   * (its shape and tilt) rather than the photo or text inside it.
+   * @param {import('../model.js').Project} doc
+   * @param {string} path
+   */
+  function resolve(doc, path) {
+    if (!path.startsWith('cell.')) return { obj: target(doc), key: path };
+    const ctx = context();
+    const cell = ctx.kind === 'page' || ctx.kind === 'box' ? null : findCell(findPage(doc, app.ui.pageId), ctx.id);
+    return { obj: cell, key: path.slice(5) };
+  }
+
+  /** @param {import('../model.js').Project} doc @param {string} path */
+  function read(doc, path) {
+    const r = resolve(doc, path);
+    return r.obj ? get(r.obj, r.key) : undefined;
+  }
+
+  /**
    * @param {string} path
    * @param {any} value
    * @param {{group?: string}} [opts]
    */
   function write(path, value, opts = {}) {
-    const ctx = context();
     app.store.update((d) => {
-      const t = target(d);
-      if (!t) return;
-      // Slot shapes live on the cell, not its content.
-      if (path === 'shape' && ctx.kind !== 'page') {
-        const cell = findCell(findPage(d, app.ui.pageId), ctx.id);
-        if (cell) cell.shape = value;
-        return;
-      }
-      set(t, path, value);
+      const r = resolve(d, path);
+      if (r.obj) set(r.obj, r.key, value);
     }, opts);
   }
 
@@ -96,7 +108,7 @@ export function createInspector(app) {
       <label class="swatch custom" title="Pick any color"><input type="color" data-custom-color="${bind}" aria-label="Custom color"></label>
     </div>`;
 
-  const shapeGrid = () => `<div class="shapes" role="group" aria-label="Frame shape">${SHAPES.map((s) => `<button data-set="shape" data-value="${s.id}" title="${s.name}" aria-label="${s.name}">${shapeSvg(s)}</button>`).join('')}</div>`;
+  const shapeGrid = () => `<div class="shapes" role="group" aria-label="Frame shape">${SHAPES.map((s) => `<button data-set="cell.shape" data-value="${s.id}" title="${s.name}" aria-label="${s.name}">${shapeSvg(s)}</button>`).join('')}</div>`;
 
   function pagePanel() {
     const doc = app.doc, page = app.page;
@@ -106,8 +118,22 @@ export function createInspector(app) {
       <div class="panel-head"><h1>Page ${app.pageIndex + 1}${n > 1 ? ` of ${n}` : ''}</h1></div>
       <div class="section">
         <div class="layout-preview"><canvas data-layout-thumb></canvas>
-          <div class="field" style="flex:1"><strong>${esc(getLayout(page.layoutId).name)}</strong>
+          <div class="field" style="flex:1"><strong>${esc(page.layoutId === 'surprise' ? 'Surprise layout' : getLayout(page.layoutId).name)}</strong>
           <button class="btn" data-act="layout">${icon('layout-grid', 16)} Change layout</button></div></div>
+      </div>
+      <div class="section">
+        <h2>Surprise me</h2>
+        <p class="hint">Makes a random layout from the photos on this page. Click again for a different one. Your photos stay on the page.</p>
+        <div class="seg full" role="group" aria-label="Kind of layout">
+          <button data-sstyle="mosaic">Mosaic</button>
+          <button data-sstyle="scatter">Scattered</button>
+        </div>
+        <div class="row"><label style="flex:1">Photos</label>
+          <button class="btn icon-only" data-act="count-down" aria-label="Fewer photos">${icon('minus', 16)}</button>
+          <output data-scount style="min-width:28px;text-align:center;font-weight:600"></output>
+          <button class="btn icon-only" data-act="count-up" aria-label="More photos">${icon('plus', 16)}</button>
+        </div>
+        <button class="btn primary" data-act="surprise">${icon('dices', 18)} Surprise me</button>
       </div>
       <div class="section">
         <div class="row"><label style="flex:1">${esc(doc.pageSize.name)} · ${describeSize(doc.pageSize)}</label><button class="btn" data-act="size">Change</button></div>
@@ -116,11 +142,12 @@ export function createInspector(app) {
           <button data-act="landscape" aria-pressed="${or === 'landscape'}">Landscape</button></div>` : ''}
       </div>
       <div class="section">
-        ${slider('Space between photos', 'gapPt', 0, 48, 1, 1, 'move-horizontal', ' pt')}
+        ${page.overlap ? '<p class="hint">Photos in this layout overlap on purpose, so there is no spacing to set.</p>' : slider('Space between photos', 'gapPt', 0, 48, 1, 1, 'move-horizontal', ' pt')}
         ${slider('Page margins', 'marginPt', 0, 96, 1, 1, 'maximize', ' pt')}
         ${slider('Rounded corners', 'frame.radiusPt', 0, 48, 1, 1, 'shapes', ' pt')}
         ${slider('Frame border', 'frame.borderPt', 0, 16, 0.5, 1, 'square-dashed', ' pt')}
         <div class="field"><label>Border color</label>${swatches('frame.borderColor', FILL_COLORS)}</div>
+        <button class="btn" data-toggle="frame.shadow">Drop shadow</button>
         <div class="field"><label>Background color</label>${swatches('background', FILL_COLORS)}</div>
         ${n > 1 ? `<button class="btn" data-act="all-pages">Use these settings on every page</button>` : ''}
       </div>
@@ -162,7 +189,7 @@ export function createInspector(app) {
         </div>
         <button class="btn" data-act="reset-color">Reset colors</button>
       </div>
-      <div class="section"><h2>Frame shape</h2>${shapeGrid()}</div>
+      <div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}</div>
       <div class="section"><button class="btn" data-act="to-text">${icon('type', 16)} Change to text</button></div>`;
   }
 
@@ -174,7 +201,7 @@ export function createInspector(app) {
         <p class="hint">Or drag a photo here from the strip at the bottom, or from File Explorer.</p>
         <button class="btn" data-act="to-text">${icon('type', 16)} Put text here instead</button>
       </div>
-      <div class="section"><h2>Frame shape</h2>${shapeGrid()}</div>`;
+      <div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}</div>`;
   }
 
   /** @param {boolean} isBox */
@@ -225,7 +252,7 @@ export function createInspector(app) {
           <button class="btn" data-act="dup-box">${icon('copy', 16)} Duplicate</button>
           <button class="btn" data-act="front">${icon('bring-to-front', 16)} Bring to front</button></div>
           <p class="hint">Drag the box to move it. Drag the side handles to change its width, the corner to resize, or the round handle to rotate.</p></div>`
-        : `<div class="section"><h2>Frame shape</h2>${shapeGrid()}<button class="btn" data-act="to-photo">${icon('image', 16)} Change to photo slot</button></div>`}`;
+        : `<div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}<button class="btn" data-act="to-photo">${icon('image', 16)} Change to photo slot</button></div>`}`;
   }
 
   function fontList() {
@@ -240,7 +267,7 @@ export function createInspector(app) {
     el.innerHTML = ctx.kind === 'page' ? pagePanel() : ctx.kind === 'photo' ? photoPanel() : ctx.kind === 'empty' ? emptyPanel() : textPanel(ctx.kind === 'box');
     fontListOpen = false;
     const thumb = /** @type {HTMLCanvasElement|null} */ (el.querySelector('[data-layout-thumb]'));
-    if (thumb) drawLayoutThumb(thumb, app.doc.pageSize, app.page.layoutId, 64, app.page);
+    if (thumb) drawLayoutShapeThumb(thumb, app.doc, app.page, 64);
   }
 
   function sync() {
@@ -249,25 +276,25 @@ export function createInspector(app) {
     el.querySelectorAll('[data-bind]').forEach((n) => {
       const input = /** @type {HTMLInputElement} */ (n);
       if (document.activeElement === input) return;
-      const v = get(t, input.getAttribute('data-bind'));
+      const v = read(app.doc, input.getAttribute('data-bind'));
       const mul = Number(input.getAttribute('data-mul') || 1);
       const str = typeof v === 'number' ? String(Math.round(v * mul * 100) / 100) : String(v ?? '');
       if (input.value !== str) input.value = str;
     });
     el.querySelectorAll('[data-out]').forEach((n) => {
-      const v = Number(get(t, n.getAttribute('data-out')) ?? 0) * Number(n.getAttribute('data-mul') || 1);
+      const v = Number(read(app.doc, n.getAttribute('data-out')) ?? 0) * Number(n.getAttribute('data-mul') || 1);
       const unit = n.getAttribute('data-unit') ?? '';
       const r = Math.round(v * 10) / 10;
       n.textContent = unit === '%' ? `${Math.round(v)}%` : unit ? `${r}${unit}` : `${r > 0 ? '+' : ''}${Math.round(v * 100) / 100}`;
     });
     el.querySelectorAll('[data-set]').forEach((n) => {
       const path = n.getAttribute('data-set');
-      const cur = path === 'shape' ? app.selectedCell?.shape : get(t, path);
+      const cur = read(app.doc, path);
       n.setAttribute('aria-pressed', String(String(cur) === n.getAttribute('data-value')));
     });
-    el.querySelectorAll('[data-toggle]').forEach((n) => n.setAttribute('aria-pressed', String(!!get(t, n.getAttribute('data-toggle')))));
+    el.querySelectorAll('[data-toggle]').forEach((n) => n.setAttribute('aria-pressed', String(!!read(app.doc, n.getAttribute('data-toggle')))));
     el.querySelectorAll('[data-color]').forEach((g) => {
-      const cur = String(get(t, g.getAttribute('data-color')) ?? '').toLowerCase();
+      const cur = String(read(app.doc, g.getAttribute('data-color')) ?? '').toLowerCase();
       let matched = false;
       g.querySelectorAll('[data-c]').forEach((b) => {
         const on = b.getAttribute('data-c').toLowerCase() === cur;
@@ -278,7 +305,10 @@ export function createInspector(app) {
       if (custom && cur) custom.value = cur.length === 7 ? cur : '#000000';
       g.querySelector('.custom')?.setAttribute('aria-pressed', String(!matched && !!cur));
     });
-    el.querySelectorAll('[data-when]').forEach((n) => { /** @type {HTMLElement} */ (n).hidden = !get(t, n.getAttribute('data-when')); });
+    el.querySelectorAll('[data-when]').forEach((n) => { /** @type {HTMLElement} */ (n).hidden = !read(app.doc, n.getAttribute('data-when')); });
+    el.querySelectorAll('[data-sstyle]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-sstyle') === app.ui.surpriseStyle)));
+    const sc = el.querySelector('[data-scount]');
+    if (sc) sc.textContent = String(app.actions.surpriseCount());
     const fontName = /** @type {HTMLElement|null} */ (el.querySelector('[data-font-name]'));
     const style = /** @type {any} */ (t).style;
     if (fontName && style) {
@@ -315,13 +345,18 @@ export function createInspector(app) {
     const tog = t.closest('[data-toggle]');
     if (tog) {
       const path = tog.getAttribute('data-toggle');
-      write(path, !get(target(app.doc), path));
+      write(path, !read(app.doc, path));
       return;
     }
     const sw = t.closest('[data-c]');
     if (sw) {
       const path = sw.closest('[data-color]').getAttribute('data-color');
       write(path, sw.getAttribute('data-c') || null);
+      return;
+    }
+    const ss = t.closest('[data-sstyle]');
+    if (ss) {
+      app.setUi({ surpriseStyle: /** @type {'mosaic'|'scatter'} */ (ss.getAttribute('data-sstyle')) });
       return;
     }
     const font = t.closest('[data-font]');
@@ -358,6 +393,10 @@ export function createInspector(app) {
     const id = ctx.id;
     switch (act) {
       case 'layout': return a.changeLayout();
+      case 'surprise': return a.surprise();
+      case 'count-down':
+      case 'count-up':
+        return app.setUi({ surpriseCount: Math.max(1, Math.min(SURPRISE_MAX, a.surpriseCount() + (act === 'count-up' ? 1 : -1))) });
       case 'size': return a.changePageSize();
       case 'portrait':
       case 'landscape':
@@ -383,7 +422,7 @@ export function createInspector(app) {
   return {
     update() {
       const ctx = context();
-      const k = `${ctx.kind}:${ctx.id}:${app.ui.mode}:${app.doc.pages.length}:${app.page.layoutId}:${app.doc.pageSize.wPt}x${app.doc.pageSize.hPt}:${app.pageIndex}`;
+      const k = `${ctx.kind}:${ctx.id}:${app.ui.mode}:${app.doc.pages.length}:${app.page.layoutId}:${!!app.page.overlap}:${app.page.cells.length}:${app.page.cells[0]?.id}:${app.doc.pageSize.wPt}x${app.doc.pageSize.hPt}:${app.pageIndex}`;
       if (k !== key) {
         key = k;
         build();

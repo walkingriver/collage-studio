@@ -53,14 +53,17 @@ export const SCHEMA_VERSION = 1;
 /** @typedef {{kind: 'text', text: string, style: TextStyle}} TextContent */
 /** @typedef {PhotoContent | TextContent} CellContent */
 
-/** @typedef {{id: string, rect: Rect, shape: string, content: CellContent | null}} Cell */
+/**
+ * A layout slot. `rotation` (degrees) and `noFrame` are optional so older files still load.
+ * @typedef {{id: string, rect: Rect, shape: string, content: CellContent | null, rotation?: number, noFrame?: boolean}} Cell
+ */
 
 /**
  * A floating text box. Height is derived from its text, so only width is stored.
  * @typedef {{id: string, xPt: number, yPt: number, wPt: number, rotation: number, text: string, style: TextStyle}} TextBox
  */
 
-/** @typedef {{borderPt: number, borderColor: string, radiusPt: number}} FrameStyle */
+/** @typedef {{borderPt: number, borderColor: string, radiusPt: number, shadow?: boolean}} FrameStyle */
 
 /**
  * @typedef {object} Page
@@ -72,6 +75,7 @@ export const SCHEMA_VERSION = 1;
  * @property {FrameStyle} frame
  * @property {Cell[]} cells
  * @property {TextBox[]} textBoxes
+ * @property {boolean} [overlap]  slots overlap on purpose, so no spacing is added between them
  */
 
 /** @typedef {{id: string, name: string, type: string, w: number, h: number}} PhotoMeta  id is the content hash */
@@ -138,16 +142,44 @@ export function newTextContent(text = 'Your text here') {
  * @returns {Page}
  */
 export function newPage(layoutId = DEFAULT_LAYOUT_ID) {
-  const layout = getLayout(layoutId);
-  return {
-    id: uid(), layoutId: layout.id, marginPt: 36, gapPt: 12, background: '#ffffff',
-    frame: { borderPt: 0, borderColor: '#ffffff', radiusPt: 0 },
-    cells: layout.cells.map((c) => ({
-      id: uid(), rect: { x: c.x, y: c.y, w: c.w, h: c.h }, shape: c.shape ?? 'rect',
-      content: c.text !== undefined ? newTextContent(c.text) : null,
-    })),
+  /** @type {Page} */
+  const page = {
+    id: uid(), layoutId, marginPt: 36, gapPt: 12, background: '#ffffff',
+    frame: { borderPt: 0, borderColor: '#ffffff', radiusPt: 0, shadow: false },
+    cells: [],
     textBoxes: [],
   };
+  applyLayout(page, layoutId);
+  return page;
+}
+
+/**
+ * Builds a slot from a layout cell.
+ * @param {import('./layouts.js').LayoutCell} c
+ * @param {CellContent|null} content
+ * @returns {Cell}
+ */
+export function cellFromLayout(c, content) {
+  /** @type {Cell} */
+  const cell = { id: uid(), rect: { x: c.x, y: c.y, w: c.w, h: c.h }, shape: c.shape ?? 'rect', content };
+  if (c.rot) cell.rotation = c.rot;
+  if (c.noFrame) cell.noFrame = true;
+  return cell;
+}
+
+/**
+ * Applies a layout's suggested frame look without overriding choices already made:
+ * a border is only added when there is none, and shadows are only turned on.
+ * @param {FrameStyle} frame
+ * @param {{borderPt?: number, borderColor?: string, shadow?: boolean}|undefined} suggestion
+ */
+export function suggestFrame(frame, suggestion) {
+  if (!suggestion) return;
+  if (!frame.borderPt && suggestion.borderPt) {
+    frame.borderPt = suggestion.borderPt;
+    if (suggestion.borderColor) frame.borderColor = suggestion.borderColor;
+  }
+  if (suggestion.shadow) frame.shadow = true;
 }
 
 /**
@@ -219,11 +251,13 @@ export function applyLayout(page, layoutId) {
   const layout = getLayout(layoutId);
   const { assigned, droppedPhotos, droppedTexts } = remapContents(page.cells.map((c) => c.content), layout.cells);
   page.layoutId = layout.id;
+  page.overlap = !!layout.overlap;
+  suggestFrame(page.frame, layout.frame);
   page.cells = layout.cells.map((c, i) => {
     let content = assigned[i];
-    if (content?.kind === 'photo') content = { ...content, zoom: 1, cx: 0.5, cy: 0.5 };
+    if (content?.kind === 'photo') content = resetCrop(content);
     if (!content && c.text !== undefined) content = newTextContent(c.text);
-    return { id: uid(), rect: { x: c.x, y: c.y, w: c.w, h: c.h }, shape: c.shape ?? 'rect', content: content ?? null };
+    return cellFromLayout(c, content ?? null);
   });
   return { droppedPhotos, droppedTexts };
 }
@@ -237,8 +271,17 @@ export function applyLayout(page, layoutId) {
 export function swapCells(page, aId, bId) {
   const a = findCell(page, aId), b = findCell(page, bId);
   if (!a || !b || a === b) return;
-  const reset = (/** @type {CellContent|null} */ c) => (c?.kind === 'photo' ? { ...c, zoom: 1, cx: 0.5, cy: 0.5 } : c);
-  [a.content, b.content] = [reset(b.content), reset(a.content)];
+  [a.content, b.content] = [resetCrop(b.content), resetCrop(a.content)];
+}
+
+/**
+ * A photo's crop back to centered and unzoomed (its frame changed shape).
+ * @template {CellContent|null} C
+ * @param {C} c
+ * @returns {C}
+ */
+export function resetCrop(c) {
+  return c?.kind === 'photo' ? /** @type {C} */ ({ ...c, zoom: 1, cx: 0.5, cy: 0.5 }) : c;
 }
 
 /**

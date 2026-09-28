@@ -3,7 +3,7 @@
 
 import { openDialog, esc } from './dom.js';
 import { PAGE_PRESETS, pageSizeFromPreset, customPageSize, orient, orientationOf, describeSize, PT_PER_IN, PT_PER_CM } from '../page-sizes.js';
-import { LAYOUTS } from '../layouts.js';
+import { LAYOUTS, LAYOUT_GROUPS } from '../layouts.js';
 import { drawLayoutThumb } from './thumbs.js';
 
 /** @typedef {import('../page-sizes.js').PageSize} PageSize */
@@ -49,7 +49,7 @@ export function choosePageAndLayout(o) {
       </div>
       <span class="hint" data-size-desc></span>
     </div>` : ''}
-    ${showLayout ? `<h2>Layout</h2><div class="layout-grid">${LAYOUTS.map((l) => `<button type="button" class="layout-tile" data-layout="${l.id}" aria-pressed="false" title="${esc(l.name)}"><canvas></canvas><span>${esc(l.name)}</span></button>`).join('')}</div>` : ''}`;
+    ${showLayout ? LAYOUT_GROUPS.map((g) => `<h2>${esc(g)}</h2><div class="layout-grid">${LAYOUTS.filter((l) => l.group === g).map((l) => `<button type="button" class="layout-tile" data-layout="${l.id}" aria-pressed="false" title="${esc(l.name)}"><canvas></canvas><span>${esc(l.name)}</span></button>`).join('')}</div>`).join('') : ''}`;
 
   return openDialog({
     title: o.title,
@@ -62,6 +62,7 @@ export function choosePageAndLayout(o) {
       const ch = /** @type {HTMLInputElement} */ (root.querySelector('[data-ch]'));
       const unitSel = /** @type {HTMLSelectElement} */ (root.querySelector('[data-unit]'));
 
+      let drawnFor = '';
       const refresh = () => {
         root.querySelectorAll('[data-preset]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-preset') === presetId)));
         root.querySelectorAll('[data-orient]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-orient') === orientation)));
@@ -70,9 +71,14 @@ export function choosePageAndLayout(o) {
         if (custom) custom.hidden = presetId !== 'custom';
         const desc = root.querySelector('[data-size-desc]');
         if (desc) desc.textContent = `${size.name} · ${describeSize(size)}`;
-        root.querySelectorAll('[data-layout]').forEach((b) => {
-          drawLayoutThumb(/** @type {HTMLCanvasElement} */ (b.querySelector('canvas')), size, /** @type {string} */ (b.getAttribute('data-layout')), 84, o.style);
-        });
+        // Layout previews only change with the page shape.
+        const shapeKey = `${size.wPt}x${size.hPt}`;
+        if (shapeKey !== drawnFor) {
+          drawnFor = shapeKey;
+          root.querySelectorAll('[data-layout]').forEach((b) => {
+            drawLayoutThumb(/** @type {HTMLCanvasElement} */ (b.querySelector('canvas')), size, /** @type {string} */ (b.getAttribute('data-layout')), 84, o.style);
+          });
+        }
       };
       const setCustomInputs = () => {
         if (!cw) return;

@@ -56,6 +56,18 @@ export function drawLayoutThumb(canvas, pageSize, layoutId, maxPx, style = {}) {
 }
 
 /**
+ * Preview of a page's own slots (works for "Surprise me" layouts, which aren't in the catalog).
+ * @param {HTMLCanvasElement} canvas
+ * @param {Project} doc
+ * @param {Page} page
+ * @param {number} maxPx
+ */
+export function drawLayoutShapeThumb(canvas, doc, page, maxPx) {
+  const empty = { ...page, cells: page.cells.map((c) => ({ ...c, content: null })), textBoxes: [] };
+  drawPageThumb(canvas, { ...doc, pages: [empty] }, empty, maxPx, null);
+}
+
+/**
  * JPEG data URL of a page preview.
  * @param {Project} doc
  * @param {Page} page

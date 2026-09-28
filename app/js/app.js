@@ -21,6 +21,8 @@ import { warmthUrl } from './filters-dom.js';
  * @property {string|null} dropTarget  cell highlighted while dragging
  * @property {string|null} dragSource  cell being dragged
  * @property {boolean} trayDrop  dragging a slot over the tray (remove)
+ * @property {'mosaic'|'scatter'} surpriseStyle  kind of random layout "Surprise me" makes
+ * @property {number|null} surpriseCount  photos for "Surprise me", or null to use what's on the page
  */
 
 /** @typedef {{update: () => void}} View */
@@ -46,7 +48,7 @@ export function createApp() {
   });
 
   /** @type {UiState} */
-  const ui = { pageId: store.doc.pages[0].id, selection: null, mode: 'normal', editing: null, dropTarget: null, dragSource: null, trayDrop: false };
+  const ui = { pageId: store.doc.pages[0].id, selection: null, mode: 'normal', editing: null, dropTarget: null, dragSource: null, trayDrop: false, surpriseStyle: 'mosaic', surpriseCount: null };
 
   /** Keeps UI state pointing at things that still exist (after undo, delete...). */
   function reconcile() {
@@ -114,7 +116,7 @@ export function createApp() {
 
     /** @param {string} pageId */
     goToPage(pageId) {
-      this.setUi({ pageId, selection: null, mode: 'normal', editing: null });
+      this.setUi({ pageId, selection: null, mode: 'normal', editing: null, surpriseCount: null });
     },
 
     /**

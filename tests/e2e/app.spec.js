@@ -222,3 +222,80 @@ test('changing layout keeps photos and reports extras', async ({ page }) => {
   await expect(page.locator('.toast')).toContainText("2 photos didn't fit");
   expect((await cells(page)).map((c) => c.kind)).toEqual(['photo', 'photo']);
 });
+
+test('surprise me keeps the photos, overlapping layouts and tilt work', async ({ page }) => {
+  await fakeFilePickers(page);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New collage' }).click();
+  await page.locator('dialog[open] [data-layout=grid-4]').click();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Create collage' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('#tray [data-a=add]').click();
+  await (await chooser).setFiles(['photo1-landscape.jpg', 'photo2-portrait.jpg', 'photo3-square.jpg', 'photo4-wide.jpg', 'photo5-small.jpg', 'photo6-tall.jpg'].map(photo));
+  await expect.poll(async () => (await cells(page)).filter((c) => c.kind === 'photo').length).toBe(4);
+  const onPage = async () => (await cells(page)).map((c) => c.photo).filter(Boolean).sort();
+  const before = await onPage();
+
+  // Toolbar "Surprise me" makes a new layout with the same photos, every time.
+  const rects = () => page.evaluate(() => JSON.stringify(window.collage.page.cells.map((c) => c.rect)));
+  await page.locator('#toolbar [data-a=surprise]').click();
+  expect(await page.evaluate(() => window.collage.page.layoutId)).toBe('surprise');
+  expect(await onPage()).toEqual(before);
+  const first = await rects();
+  await page.locator('#toolbar [data-a=surprise]').click();
+  expect(await onPage()).toEqual(before);
+  expect(await rects()).not.toBe(first);
+
+  // Scattered, one more photo: the extra comes from the tray.
+  await page.locator('#stage-canvas').click({ position: { x: 5, y: 5 } });
+  await page.locator('.inspector [data-sstyle=scatter]').click();
+  await page.locator('.inspector [data-act=count-up]').click();
+  await expect(page.locator('.inspector [data-scount]')).toHaveText('5');
+  await page.locator('.inspector [data-act=surprise]').click();
+  const scattered = await page.evaluate(() => ({ overlap: window.collage.page.overlap, n: window.collage.page.cells.length, tilted: window.collage.page.cells.every((c) => Math.abs(c.rotation) >= 1.5), shadow: window.collage.page.frame.shadow }));
+  expect(scattered).toEqual({ overlap: true, n: 5, tilted: true, shadow: true });
+  const after = await onPage();
+  expect(after.length).toBe(5);
+  for (const id of before) expect(after).toContain(id);
+
+  // Clicking where prints overlap selects the one on top; dragging a tilted print swaps it.
+  const top = await cellCenter(page, 4);
+  await page.mouse.click(top.x, top.y);
+  expect(await page.evaluate(() => window.collage.ui.selection?.id === window.collage.page.cells[4].id)).toBe(true);
+  const pair = await page.evaluate(() => [window.collage.page.cells[4].content.photoId, window.collage.page.cells[0].content.photoId]);
+  const bottom = await cellCenter(page, 0);
+  await page.mouse.move(top.x, top.y);
+  await page.mouse.down();
+  await page.mouse.move(bottom.x, bottom.y, { steps: 10 });
+  await page.mouse.up();
+  // cell 0 may be partly covered; if the drop landed on it, the photos traded places.
+  const now = await page.evaluate(() => [window.collage.page.cells[4].content.photoId, window.collage.page.cells[0].content.photoId]);
+  expect(now).toEqual([pair[1], pair[0]]);
+
+  // Tilt slider on a photo.
+  const tilt = page.locator('input[data-bind="cell.rotation"]');
+  await tilt.fill('12');
+  expect(await page.evaluate(() => window.collage.selectedCell.rotation)).toBe(12);
+
+  // An overlapping template from the picker.
+  await page.getByRole('button', { name: 'Layout', exact: true }).click();
+  await page.locator('dialog[open] [data-layout=inset-two]').click();
+  await expect(page.locator('dialog[open] [data-layout=inset-two]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('dialog[open]').getByRole('button', { name: 'Use this layout' }).click();
+  await expect.poll(() => page.evaluate(() => ({ layout: window.collage.page.layoutId, overlap: window.collage.page.overlap, base: window.collage.page.cells[0].noFrame }))).toEqual({ layout: 'inset-two', overlap: true, base: true });
+
+  // Export still renders (tilt + shadows) at the right size: 150 DPI Letter is 1275 × 1650.
+  await page.locator('#toolbar [data-a=jpeg]').click();
+  await page.locator('dialog[open] input[name=dpi][value="150"]').check();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Save JPEG' }).click();
+  await expect.poll(() => page.evaluate(() => window.__saved.filter((s) => s.name.endsWith('.jpg')).length)).toBe(1);
+  const dims = await page.evaluate(async () => {
+    const bmp = await createImageBitmap(window.__saved.find((x) => x.name.endsWith('.jpg')).blob);
+    return [bmp.width, bmp.height];
+  });
+  expect(dims).toEqual([1275, 1650]);
+  await page.locator('#stage').screenshot({ path: path.join(outDir, 'overlap.png') });
+  expect(errors).toEqual([]);
+});

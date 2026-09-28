@@ -3,8 +3,8 @@
 // (select, drag photos between slots, crop, move/resize/rotate text boxes, in-place text
 // editing, drops from the tray or File Explorer, zoom).
 
-import { renderPage, measureTextBox } from '../render.js';
-import { frameRect, panCrop, pointInRotRect, toLocal, toPage, MAX_ZOOM } from '../geometry.js';
+import { renderPage, measureTextBox, tiltCell } from '../render.js';
+import { frameRect, panCrop, pointInRotRect, toLocal, toPage, MAX_ZOOM, cellRotation, toFrameLocal, rotateAround } from '../geometry.js';
 import { shapePath } from '../shapes.js';
 import { layoutText } from '../text.js';
 import { swapCells, placePhoto } from '../model.js';
@@ -110,7 +110,9 @@ export function createStage(app) {
     }
     for (let i = page.cells.length - 1; i >= 0; i--) {
       const c = page.cells[i];
-      if (mctx.isPointInPath(shapePath(c.shape, frameRect(page, size, c), page.frame.radiusPt), pt.x, pt.y)) return { kind: 'cell', cell: c };
+      const f = frameRect(page, size, c);
+      const p = toFrameLocal(f, cellRotation(c), pt.x, pt.y);
+      if (mctx.isPointInPath(shapePath(c.shape, f, page.frame.radiusPt), p.x, p.y)) return { kind: 'cell', cell: c };
     }
     if (pt.x >= 0 && pt.y >= 0 && pt.x <= size.wPt && pt.y <= size.hPt) return { kind: 'page' };
     return { kind: 'none' };
@@ -169,22 +171,26 @@ export function createStage(app) {
       ctx.strokeStyle = color;
       ctx.stroke(path);
     };
-    const cellPath = (/** @type {Cell} */ c) => shapePath(c.shape, frameRect(page, size, c), page.frame.radiusPt);
 
     for (const c of page.cells) {
+      const f = frameRect(page, size, c);
+      const path = shapePath(c.shape, f, page.frame.radiusPt);
+      ctx.save();
+      tiltCell(ctx, f, cellRotation(c));
       if (c.id === ui.dragSource) {
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fill(cellPath(c));
+        ctx.fill(path);
       }
       if (c.id === ui.dropTarget) {
         ctx.fillStyle = colors.accentSoft;
-        ctx.fill(cellPath(c));
-        outline(cellPath(c), colors.accent, 3);
+        ctx.fill(path);
+        outline(path, colors.accent, 3);
       } else if (ui.selection?.kind === 'cell' && ui.selection.id === c.id) {
-        outline(cellPath(c), colors.accent, ui.mode === 'crop' ? 3 : 2.5);
+        outline(path, colors.accent, ui.mode === 'crop' ? 3 : 2.5);
       } else if (c.id === hoverCellId && !ui.dragSource) {
-        outline(cellPath(c), colors.hover, 1.5);
+        outline(path, colors.hover, 1.5);
       }
+      ctx.restore();
     }
 
     const box = app.selectedBox;
@@ -412,7 +418,9 @@ export function createStage(app) {
         if (!cell || cell.content?.kind !== 'photo') break;
         const meta = app.doc.photos[cell.content.photoId];
         const frame = frameRect(app.page, app.doc.pageSize, cell);
-        const next = panCrop(cell.content, meta, frame, pt.x - last.x, pt.y - last.y);
+        // Drag direction relative to a tilted frame.
+        const d = rotateAround(pt.x - last.x, pt.y - last.y, 0, 0, -cellRotation(cell));
+        const next = panCrop(cell.content, meta, frame, d.x, d.y);
         app.editCell(cell.id, (c) => {
           if (c.content?.kind === 'photo') Object.assign(c.content, next);
         }, { group: 'crop', sticky: true });
@@ -770,6 +778,7 @@ export function createStage(app) {
       if (cell?.content?.kind !== 'text') return;
       style = cell.content.style;
       rect = frameRect(app.page, app.doc.pageSize, cell);
+      rotation = cellRotation(cell);
       const measure = (/** @type {string} */ str, /** @type {string} */ font) => {
         mctx.font = font;
         return mctx.measureText(str).width;

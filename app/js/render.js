@@ -3,7 +3,7 @@
 // device pixels. Used for the editor, thumbnails, JPEG/PDF export and printing, so what
 // you see is what you get.
 
-import { frameRect, photoPlacement } from './geometry.js';
+import { frameRect, photoPlacement, cellRotation } from './geometry.js';
 import { shapePath } from './shapes.js';
 import { filterString } from './adjust.js';
 import { layoutText, positionLines, autoHeight } from './text.js';
@@ -59,7 +59,20 @@ function drawCell(ctx, doc, page, cell, opts) {
   const frame = frameRect(page, doc.pageSize, cell);
   const path = shapePath(cell.shape, frame, page.frame.radiusPt);
   const content = cell.content;
+  // Empty slots leave no trace in exports and prints.
+  const framed = !cell.noFrame && (!!content || opts.mode !== 'export');
   ctx.save();
+  tiltCell(ctx, frame, cellRotation(cell));
+  if (framed && page.frame.shadow) {
+    // Shadow sizes are in device pixels, so scale them to look the same at every zoom and DPI.
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 9 * opts.pxPerPt;
+    ctx.shadowOffsetY = 3 * opts.pxPerPt;
+    ctx.fillStyle = page.background;
+    ctx.fill(path);
+    ctx.restore();
+  }
   ctx.clip(path);
 
   if (content?.kind === 'photo') {
@@ -87,7 +100,7 @@ function drawCell(ctx, doc, page, cell, opts) {
     ctx.fill(path);
   }
 
-  if (page.frame.borderPt > 0) {
+  if (framed && page.frame.borderPt > 0) {
     // Stroke is centered on the path; clipping keeps just the inside half, so double it.
     ctx.lineWidth = page.frame.borderPt * 2;
     ctx.strokeStyle = page.frame.borderColor;
@@ -129,10 +142,26 @@ function drawCropGhost(ctx, doc, page, cell, opts) {
   const meta = doc.photos[cell.content.photoId];
   const got = meta && opts.getImage?.(cell);
   if (!got) return;
+  const frame = frameRect(page, doc.pageSize, cell);
   ctx.save();
+  tiltCell(ctx, frame, cellRotation(cell));
   ctx.globalAlpha = 0.35;
-  drawPhoto(ctx, cell.content, meta, frameRect(page, doc.pageSize, cell), got, opts);
+  drawPhoto(ctx, cell.content, meta, frame, got, opts);
   ctx.restore();
+}
+
+/**
+ * Turns the canvas so a tilted slot can be drawn as if it were straight.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./model.js').Rect} frame
+ * @param {number} deg
+ */
+export function tiltCell(ctx, frame, deg) {
+  if (!deg) return;
+  const cx = frame.x + frame.w / 2, cy = frame.y + frame.h / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.translate(-cx, -cy);
 }
 
 /**
