@@ -64,6 +64,10 @@ One-time setup: **Settings → Pages → Source: GitHub Actions**. Because the `
 GitHub account's site uses the custom domain `walkingriver.com`, the app is published at
 `https://walkingriver.com/collage-studio/`.
 
+The link-preview tags in `app/index.html` (`og:*`, `twitter:*`, canonical) spell out the full
+address, because X and other sites need absolute URLs. Update them if the address changes.
+The preview image and start-screen sample are drawn by `node scripts/make-marketing.mjs`.
+
 > Choose the permanent address before people install the app or it goes in the Store.
 > Autosaved work and the recent-files list belong to the web address, so moving to another
 > domain later would leave them behind.

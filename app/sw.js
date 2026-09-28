@@ -16,6 +16,7 @@ const FILES = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/maskable-512.png',
+  'images/sample-collage.jpg',
   'js/main.js',
   'js/app.js',
   'js/actions.js',

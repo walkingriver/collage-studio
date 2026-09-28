@@ -9,6 +9,19 @@ import { clearSession } from '../io/autosave.js';
 
 /** @typedef {import('../io/autosave.js').Session} Session */
 
+// Browsers that can install the app (Edge, Chrome) offer it through this event.
+/** @type {any} */
+let installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  document.dispatchEvent(new Event('cs:installable'));
+});
+addEventListener('appinstalled', () => {
+  installPrompt = null;
+  document.dispatchEvent(new Event('cs:installable'));
+});
+
 /** @param {import('../app.js').App} app */
 export function createStart(app) {
   const el = /** @type {HTMLElement} */ ($('#start'));
@@ -21,6 +34,8 @@ export function createStart(app) {
     recents = canUseFileDialogs ? (await recent.all().catch(() => [])).sort((a, b) => b.savedAt - a.savedAt) : [];
     const when = (/** @type {number} */ t) => new Date(t).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     el.innerHTML = `<div class="start-inner">
+      <div class="start-top">
+      <div class="start-intro">
       <div class="start-hero"><img src="icons/icon-192.png" alt="">
         <div><h1>Collage Studio</h1><p>Pick a layout, drop in your photos, add a few words, then print or save.</p></div></div>
       ${session ? `<div class="banner" role="alert">${icon('save', 20)}
@@ -30,6 +45,16 @@ export function createStart(app) {
       <div class="start-actions">
         <button class="btn primary big" data-a="new">${icon('file-plus', 22)} New collage</button>
         <button class="btn big" data-a="open">${icon('folder-open', 22)} Open a saved collage</button>
+        ${installPrompt ? `<button class="btn big promo" data-a="install">${icon('monitor-down', 22)} Install app</button>` : ''}
+      </div>
+      <ul class="features promo">
+        <li>${icon('layout-grid', 20)}<span>Dozens of layouts, or let <strong>Surprise me</strong> arrange your photos</span></li>
+        <li>${icon('crop', 20)}<span>Crop, rotate, fix colors, and add frames and words</span></li>
+        <li>${icon('printer', 20)}<span>Print it, or save it as a PDF or JPEG</span></li>
+        <li>${icon('lock', 20)}<span>Free, with no sign-up. Your photos never leave your computer.</span></li>
+      </ul>
+      </div>
+      <img class="start-sample promo" src="images/sample-collage.jpg" alt="A sample collage: five tilted photo prints of a sunset, mountains, a beach, flowers and hot-air balloons." width="960" height="680">
       </div>
       ${recents.length ? `<div><h2>Recent collages</h2><div class="recent-grid">${recents.map((r) => `
         <div class="recent-card" role="button" tabindex="0" data-recent="${esc(r.id)}" title="Open ${esc(r.name)}">
@@ -37,7 +62,7 @@ export function createStart(app) {
           <strong>${esc(r.name.replace(/\.collage$/i, ''))}</strong><small>${esc(when(r.savedAt))}</small>
           <button class="forget" data-forget="${esc(r.id)}" title="Remove from this list" aria-label="Remove ${esc(r.name)} from recent">${icon('x', 14)}</button>
         </div>`).join('')}</div></div>` : ''}
-      <p class="hint">Your photos stay on this computer. Nothing is uploaded. · <a href="support.html" target="_blank" rel="noopener">Help</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+      <p class="hint"><span class="installed-only">Your photos stay on this computer. Nothing is uploaded. · </span><a href="support.html" target="_blank" rel="noopener">Help</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
     </div>`;
   }
 
@@ -59,6 +84,14 @@ export function createStart(app) {
     switch (t.closest('[data-a]')?.getAttribute('data-a')) {
       case 'new': return app.actions.newCollage();
       case 'open': return app.actions.openCollage();
+      case 'install':
+        if (installPrompt) {
+          installPrompt.prompt();
+          await installPrompt.userChoice.catch(() => null);
+          installPrompt = null;
+          render();
+        }
+        return;
       case 'restore':
         if (session) app.actions.startProject(session.doc, { handle: session.handle, name: session.fileName }, { saved: false });
         return;
@@ -76,6 +109,9 @@ export function createStart(app) {
     }
   });
   document.addEventListener('cs:recent-changed', () => {
+    if (!el.hidden) render();
+  });
+  document.addEventListener('cs:installable', () => {
     if (!el.hidden) render();
   });
 
