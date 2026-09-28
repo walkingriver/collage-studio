@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help · Collage Studio</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <style>
+    :root { --bg: #f7f7f7; --text: #1b1b1b; --muted: #5c5c5c; --card: #fff; --accent: #0f6cbd; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #202020; --text: #f3f3f3; --muted: #c5c5c5; --card: #2b2b2b; --accent: #4cc2ff; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+    header img { width: 48px; height: 48px; border-radius: 11px; }
+    h1 { font-size: 28px; margin: 0; }
+    h2 { font-size: 19px; margin: 32px 0 6px; }
+    details { background: var(--card); border-radius: 10px; padding: 12px 18px; margin: 10px 0; }
+    summary { cursor: pointer; font-weight: 600; }
+    kbd { font: 13px/1 ui-monospace, monospace; padding: 2px 6px; border-radius: 4px; background: rgba(127,127,127,0.18); }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <header><img src="icons/icon-192.png" alt=""><h1>Collage Studio help</h1></header>
+    <p><a href="./">Open Collage Studio</a></p>
+
+    <h2>Making a collage</h2>
+    <ol>
+      <li>Click <strong>New collage</strong>, pick a page size (US Letter is already chosen) and a layout.</li>
+      <li>Click <strong>Add photos</strong>, or drag pictures from File Explorer onto the page. They fill the empty slots.</li>
+      <li>Drag one photo onto another to swap them. Double-click a photo to crop it.</li>
+      <li>Use the panel on the right to rotate, adjust colors, change the frame shape, or switch a slot to text.</li>
+      <li>Click <strong>Add text</strong> for a title or caption you can put anywhere, even on top of a photo.</li>
+      <li>Click <strong>Save</strong> to keep your collage so you can change it later.</li>
+      <li>Click <strong>Print</strong>, <strong>Save PDF</strong> or <strong>Save JPEG</strong>.</li>
+    </ol>
+
+    <h2>Common questions</h2>
+    <details><summary>How do I save a PDF?</summary>
+      <p>Click <strong>Save PDF</strong>. In the print window, set the printer (or destination) to <strong>Save as PDF</strong>
+        and click <strong>Save</strong>. Choose “Save as PDF” rather than “Microsoft Print to PDF”, because it keeps your exact page size.</p></details>
+    <details><summary>My print has white edges or is the wrong size</summary>
+      <p>In the print window, make sure <strong>Scale</strong> is 100% (or “Actual size”), and that the paper size matches
+        your collage. Most home printers can't print all the way to the edge, so a thin white border is normal.
+        Photo labs print edge to edge from a PDF or JPEG.</p></details>
+    <details><summary>My iPhone photos won't add</summary>
+      <p>iPhones save photos as HEIC files, which Collage Studio can't read yet. On the iPhone, open
+        <strong>Settings › Photos</strong> and under “Transfer to Mac or PC” choose <strong>Automatic</strong>. Photos copied to
+        your computer will then be JPEGs. You can also convert HEIC files with the Windows Photos app (Save as JPEG).</p></details>
+    <details><summary>Where are my collages saved?</summary>
+      <p>Wherever you choose when you click Save. Collage files end in <strong>.collage</strong> and contain copies of your photos,
+        so they still work if you move or delete the originals. Double-click a .collage file to open it.</p></details>
+    <details><summary>The app closed before I saved</summary>
+      <p>Open Collage Studio again and click <strong>Pick up where I left off</strong>.</p></details>
+    <details><summary>Does it need the internet?</summary>
+      <p>No. Once it's installed it works offline, and your photos are never uploaded.</p></details>
+
+    <h2>Keyboard shortcuts</h2>
+    <p><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
+      <kbd>Ctrl</kbd>+<kbd>O</kbd> open · <kbd>Ctrl</kbd>+<kbd>P</kbd> print · <kbd>Delete</kbd> remove the selected item ·
+      <kbd>Enter</kbd> crop a photo or edit text · <kbd>Esc</kbd> cancel · arrow keys move between slots or nudge text.</p>
+
+    <h2>Still stuck?</h2>
+    <p>Report a problem or ask a question on <a href="https://github.com/walkingriver/collage-studio/issues">GitHub Issues</a>.
+      <span class="muted">See also the <a href="privacy.html">privacy policy</a>.</span></p>
+  </main>
+</body>
+</html>

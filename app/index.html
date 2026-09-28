@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collage Studio</title>
+  <meta name="description" content="Make photo collages the easy way. Pick a layout, drop in photos, add text, then print or save as PDF or JPEG.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0f6cbd">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="app" class="app" hidden>
+    <header class="toolbar" id="toolbar" role="toolbar" aria-label="Main toolbar"></header>
+    <aside class="pages" id="pages" aria-label="Pages"></aside>
+    <main class="stage" id="stage" aria-label="Page editor">
+      <canvas id="stage-canvas" tabindex="0" aria-label="Collage page. Use the panel on the right to edit the selected item."></canvas>
+      <div class="stage-hud" id="stage-hud"></div>
+    </main>
+    <aside class="inspector" id="inspector" aria-label="Properties"></aside>
+    <footer class="tray" id="tray" aria-label="Your photos"></footer>
+  </div>
+
+  <section id="start" class="start" hidden aria-label="Start"></section>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <div id="sr-status" class="sr-only" aria-live="polite"></div>
+  <div id="print-root" class="print-root" aria-hidden="true"></div>
+  <input type="file" id="photo-input" accept="image/*,.heic,.heif" multiple hidden>
+  <input type="file" id="project-input" accept=".collage" hidden>
+  <noscript>Collage Studio needs JavaScript turned on.</noscript>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "collage-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A dead-simple photo collage maker (installable PWA).",
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "e2e": "playwright test",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
