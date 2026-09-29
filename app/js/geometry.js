@@ -192,3 +192,49 @@ export function toPage(r, lx, ly) {
   const dx = lx - r.w / 2, dy = ly - r.h / 2;
   return { x: cx + dx * Math.cos(a) - dy * Math.sin(a), y: cy + dx * Math.sin(a) + dy * Math.cos(a) };
 }
+
+/**
+ * Corners of a slot's frame on the page, after its tilt.
+ * @param {Page} page
+ * @param {PageSize} size
+ * @param {Cell} cell
+ * @returns {Array<{x: number, y: number}>}
+ */
+export function framePolygon(page, size, cell) {
+  const f = frameRect(page, size, cell);
+  const deg = cellRotation(cell), cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+  return [[f.x, f.y], [f.x + f.w, f.y], [f.x + f.w, f.y + f.h], [f.x, f.y + f.h]].map(([x, y]) => rotateAround(x, y, cx, cy, deg));
+}
+
+/**
+ * True when two convex polygons overlap by more than `minDepth` points (separating-axis test),
+ * so frames that merely touch across a gap don't count.
+ * @param {Array<{x: number, y: number}>} a
+ * @param {Array<{x: number, y: number}>} b
+ * @param {number} [minDepth]
+ */
+export function polygonsOverlap(a, b, minDepth = 0.5) {
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const nx = q.y - p.y, ny = p.x - q.x;
+      const len = Math.hypot(nx, ny) || 1;
+      const project = (/** @type {Array<{x: number, y: number}>} */ pts) => pts.map((v) => (v.x * nx + v.y * ny) / len);
+      const pa = project(a), pb = project(b);
+      const depth = Math.min(Math.max(...pa), Math.max(...pb)) - Math.max(Math.min(...pa), Math.min(...pb));
+      if (depth <= minDepth) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether two slots cover some of the same part of the page (tilt included).
+ * @param {Page} page
+ * @param {PageSize} size
+ * @param {Cell} a
+ * @param {Cell} b
+ */
+export function cellsOverlap(page, size, a, b) {
+  return a !== b && polygonsOverlap(framePolygon(page, size, a), framePolygon(page, size, b));
+}

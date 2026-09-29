@@ -326,6 +326,36 @@ export function removePhoto(doc, photoId) {
 }
 
 /**
+ * Changes which slots a slot sits above or below. The page draws slots in order, so later
+ * ones cover earlier ones. "forward"/"backward" step past the next slot that actually
+ * overlaps (per `overlaps`), so every step makes a visible difference.
+ * @param {Page} page
+ * @param {string} cellId
+ * @param {'front'|'forward'|'backward'|'back'} where
+ * @param {(a: Cell, b: Cell) => boolean} overlaps
+ * @returns {boolean} whether anything changed
+ */
+export function moveCellLayer(page, cellId, where, overlaps) {
+  const cells = page.cells;
+  const i = cells.findIndex((c) => c.id === cellId);
+  if (i < 0) return false;
+  const cell = cells[i];
+  const above = cells.slice(i + 1).filter((c) => overlaps(cell, c));
+  const below = cells.slice(0, i).filter((c) => overlaps(cell, c));
+  let to;
+  if (where === 'front' || where === 'forward') {
+    if (!above.length) return false;
+    to = where === 'front' ? cells.length - 1 : cells.indexOf(above[0]);
+  } else {
+    if (!below.length) return false;
+    to = where === 'back' ? 0 : cells.indexOf(below[below.length - 1]);
+  }
+  cells.splice(i, 1);
+  cells.splice(to, 0, cell);
+  return true;
+}
+
+/**
  * Deep-copies a page with fresh ids.
  * @param {Page} page
  * @returns {Page}

@@ -108,6 +108,19 @@ export function createInspector(app) {
       <label class="swatch custom" title="Pick any color"><input type="color" data-custom-color="${bind}" aria-label="Custom color"></label>
     </div>`;
 
+  const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
+  /** Shown only when the selected slot overlaps another one (see sync). */
+  const layerSection = () => `
+      <div class="section" data-layer-section hidden>
+        <h2>Layer</h2>
+        <div class="grid-btns">
+          <button class="btn" data-layer="front" title="Bring to front (${mod}Shift+])">${icon('bring-to-front', 20)}To front</button>
+          <button class="btn" data-layer="forward" title="Bring forward (${mod}])">${icon('arrow-up', 20)}Forward</button>
+          <button class="btn" data-layer="backward" title="Send backward (${mod}[)">${icon('arrow-down', 20)}Backward</button>
+          <button class="btn" data-layer="back" title="Send to back (${mod}Shift+[)">${icon('send-to-back', 20)}To back</button>
+        </div>
+      </div>`;
+
   const shapeGrid = () => `<div class="shapes" role="group" aria-label="Frame shape">${SHAPES.map((s) => `<button data-set="cell.shape" data-value="${s.id}" title="${s.name}" aria-label="${s.name}">${shapeSvg(s)}</button>`).join('')}</div>`;
 
   function pagePanel() {
@@ -176,6 +189,7 @@ export function createInspector(app) {
         </div>
         ${slider('Zoom', 'zoom', 100, MAX_ZOOM * 100, 1, 100, 'zoom-in', '%')}
       </div>
+      ${layerSection()}
       <div class="section">
         <h2>Color</h2>
         ${slider('Brightness', 'adjust.brightness', -100, 100, 1, 100, 'sun')}
@@ -201,6 +215,7 @@ export function createInspector(app) {
         <p class="hint">Or drag a photo here from the strip at the bottom, or from File Explorer.</p>
         <button class="btn" data-act="to-text">${icon('type', 16)} Put text here instead</button>
       </div>
+      ${layerSection()}
       <div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}</div>`;
   }
 
@@ -252,7 +267,7 @@ export function createInspector(app) {
           <button class="btn" data-act="dup-box">${icon('copy', 16)} Duplicate</button>
           <button class="btn" data-act="front">${icon('bring-to-front', 16)} Bring to front</button></div>
           <p class="hint">Drag the box to move it. Drag the side handles to change its width, the corner to resize, or the round handle to rotate.</p></div>`
-        : `<div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}<button class="btn" data-act="to-photo">${icon('image', 16)} Change to photo slot</button></div>`}`;
+        : `${layerSection()}<div class="section"><h2>Frame</h2>${shapeGrid()}${slider('Tilt', 'cell.rotation', -20, 20, 0.5, 1, 'rotate-cw', '°')}<button class="btn" data-act="to-photo">${icon('image', 16)} Change to photo slot</button></div>`}`;
   }
 
   function fontList() {
@@ -306,6 +321,15 @@ export function createInspector(app) {
       g.querySelector('.custom')?.setAttribute('aria-pressed', String(!matched && !!cur));
     });
     el.querySelectorAll('[data-when]').forEach((n) => { /** @type {HTMLElement} */ (n).hidden = !read(app.doc, n.getAttribute('data-when')); });
+    const layer = /** @type {HTMLElement|null} */ (el.querySelector('[data-layer-section]'));
+    if (layer) {
+      const st = app.actions.layerState(context().id);
+      layer.hidden = !st.overlaps;
+      layer.querySelectorAll('[data-layer]').forEach((b) => {
+        const w = b.getAttribute('data-layer');
+        /** @type {HTMLButtonElement} */ (b).disabled = w === 'front' || w === 'forward' ? !st.canRaise : !st.canLower;
+      });
+    }
     el.querySelectorAll('[data-sstyle]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-sstyle') === app.ui.surpriseStyle)));
     const sc = el.querySelector('[data-scount]');
     if (sc) sc.textContent = String(app.actions.surpriseCount());
@@ -352,6 +376,11 @@ export function createInspector(app) {
     if (sw) {
       const path = sw.closest('[data-color]').getAttribute('data-color');
       write(path, sw.getAttribute('data-c') || null);
+      return;
+    }
+    const lay = t.closest('[data-layer]');
+    if (lay) {
+      app.actions.layer(context().id, /** @type {'front'|'forward'|'backward'|'back'} */ (lay.getAttribute('data-layer')));
       return;
     }
     const ss = t.closest('[data-sstyle]');

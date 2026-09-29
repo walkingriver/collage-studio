@@ -74,6 +74,11 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && k === '0') {
     e.preventDefault();
     app.stage.setZoom(1, true);
+  } else if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft') && app.selectedCell) {
+    // Stacking order: Ctrl+] forward, Ctrl+[ backward; add Shift for all the way.
+    e.preventDefault();
+    const up = e.code === 'BracketRight';
+    a.layer(app.selectedCell.id, up ? (e.shiftKey ? 'front' : 'forward') : (e.shiftKey ? 'back' : 'backward'));
   } else if (mod && k === 'd' && app.selectedBox) {
     e.preventDefault();
     a.duplicateBox(app.selectedBox.id);

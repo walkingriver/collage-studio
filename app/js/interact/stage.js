@@ -629,6 +629,25 @@ export function createStage(app) {
           { label: 'Change to text', icon: 'type', run: () => a.toggleTextSlot(id) },
         ];
       }
+      // Stacking order, only when this slot overlaps another.
+      const st = a.layerState(id);
+      if (st.overlaps) {
+        const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
+        /** @type {import('../ui/dom.js').MenuItem[]} */
+        const layer = [];
+        if (st.canRaise) layer.push(
+          { label: 'Bring to front', icon: 'bring-to-front', kbd: `${mod}⇧]`, run: () => a.layer(id, 'front') },
+          { label: 'Bring forward', icon: 'arrow-up', kbd: `${mod}]`, run: () => a.layer(id, 'forward') },
+        );
+        if (st.canLower) layer.push(
+          { label: 'Send backward', icon: 'arrow-down', kbd: `${mod}[`, run: () => a.layer(id, 'backward') },
+          { label: 'Send to back', icon: 'send-to-back', kbd: `${mod}⇧[`, run: () => a.layer(id, 'back') },
+        );
+        // Keep "Remove photo" last.
+        const lastSep = items.lastIndexOf('sep');
+        if (kind === 'photo' && lastSep >= 0) items.splice(lastSep, 0, 'sep', ...layer);
+        else items.push('sep', ...layer);
+      }
     } else {
       app.select(null);
       items = [

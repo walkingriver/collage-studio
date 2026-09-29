@@ -3,9 +3,9 @@
 
 import {
   newProject, newPage, newTextBox, newTextContent, newPhotoContent, applyLayout, placePhoto, autoFill, removePhoto,
-  duplicatePage, photoUsage, findPage, uid, cellFromLayout, resetCrop, suggestFrame,
+  duplicatePage, photoUsage, findPage, uid, cellFromLayout, resetCrop, suggestFrame, moveCellLayer,
 } from './model.js';
-import { frameRect, contentRect, orientedSize } from './geometry.js';
+import { frameRect, contentRect, orientedSize, cellsOverlap } from './geometry.js';
 import { randomMosaic, randomScatter } from './random-layout.js';
 import { PRINTS } from './layouts.js';
 import { packProject, unpackProject, PROJECT_MIME } from './io/project-file.js';
@@ -263,6 +263,31 @@ export function createActions(app) {
         app.editCell(cellId, (c) => { c.content = newTextContent('Your text here'); });
         app.stage.startEditing({ kind: 'cell', id: cellId });
       }
+    },
+
+    /**
+     * Which layer moves make a visible difference for a slot right now.
+     * @param {string} cellId
+     */
+    layerState(cellId) {
+      const page = app.page, size = store.doc.pageSize;
+      const i = page.cells.findIndex((c) => c.id === cellId);
+      const cell = page.cells[i];
+      if (!cell) return { overlaps: false, canRaise: false, canLower: false };
+      const hit = (/** @type {import('./model.js').Cell} */ c) => cellsOverlap(page, size, cell, c);
+      const canRaise = page.cells.slice(i + 1).some(hit), canLower = page.cells.slice(0, i).some(hit);
+      return { overlaps: canRaise || canLower, canRaise, canLower };
+    },
+
+    /**
+     * Moves a photo (or text slot) above or below the slots it overlaps.
+     * @param {string} cellId
+     * @param {'front'|'forward'|'backward'|'back'} where
+     */
+    layer(cellId, where) {
+      const st = a.layerState(cellId);
+      if (!(where === 'front' || where === 'forward' ? st.canRaise : st.canLower)) return;
+      app.editPage((p, d) => moveCellLayer(p, cellId, where, (x, y) => cellsOverlap(p, d.pageSize, x, y)));
     },
 
     deleteSelection() {

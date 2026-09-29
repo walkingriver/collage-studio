@@ -299,3 +299,83 @@ test('surprise me keeps the photos, overlapping layouts and tilt work', async ({
   await page.locator('#stage').screenshot({ path: path.join(outDir, 'overlap.png') });
   expect(errors).toEqual([]);
 });
+
+/** Screen point on slot `index` that no later (higher) slot covers. */
+async function visiblePoint(page, index) {
+  return page.evaluate(async (i) => {
+    const { framePolygon } = await import('/js/geometry.js');
+    const app = window.collage;
+    const inside = (poly, p) => poly.every((a, k) => {
+      const b = poly[(k + 1) % poly.length];
+      return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x) >= 0;
+    });
+    const polys = app.page.cells.map((c) => framePolygon(app.page, app.doc.pageSize, c));
+    const own = polys[i];
+    const xs = own.map((p) => p.x), ys = own.map((p) => p.y);
+    for (let fy = 0.1; fy < 1; fy += 0.1) for (let fx = 0.1; fx < 1; fx += 0.1) {
+      const p = { x: Math.min(...xs) + fx * (Math.max(...xs) - Math.min(...xs)), y: Math.min(...ys) + fy * (Math.max(...ys) - Math.min(...ys)) };
+      if (inside(own, p) && !polys.slice(i + 1).some((q) => inside(q, p))) {
+        const r = document.getElementById('stage-canvas').getBoundingClientRect();
+        const v = app.stage.view;
+        return { x: r.left + v.ox + p.x * v.scale, y: r.top + v.oy + p.y * v.scale };
+      }
+    }
+    return null;
+  }, index);
+}
+
+test('layering: bring overlapping photos to the front or send them back', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New collage' }).click();
+  await page.locator('dialog[open] [data-layout=cascade-4]').click();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Create collage' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('#tray [data-a=add]').click();
+  await (await chooser).setFiles(['photo1-landscape.jpg', 'photo2-portrait.jpg', 'photo3-square.jpg', 'photo4-wide.jpg'].map(photo));
+  await expect.poll(async () => (await cells(page)).filter((c) => c.kind === 'photo').length).toBe(4);
+  const order = () => page.evaluate(() => window.collage.page.cells.map((c) => c.content.photoId));
+  const start = await order();
+
+  // Click the visible part of the bottom photo: the Layer section appears.
+  const p = await visiblePoint(page, 0);
+  await page.mouse.click(p.x, p.y);
+  const layer = page.locator('[data-layer-section]');
+  await expect(layer).toBeVisible();
+  await expect(layer.locator('[data-layer=back]')).toBeDisabled();
+  await expect(layer.locator('[data-layer=front]')).toBeEnabled();
+
+  // To front: it's now drawn last, and clicking that spot still selects it.
+  await layer.locator('[data-layer=front]').click();
+  expect(await order()).toEqual([...start.slice(1), start[0]]);
+  await expect(layer.locator('[data-layer=front]')).toBeDisabled();
+
+  // Ctrl+[ : one step back. It only touches the photo that was above it, so it skips
+  // the two it doesn't touch and lands below that one, back at the bottom.
+  await page.locator('#stage-canvas').focus();
+  await page.keyboard.press('Control+BracketLeft');
+  expect(await order()).toEqual(start);
+
+  // Ctrl+Shift+] : all the way to the front again.
+  await page.keyboard.press('Control+Shift+BracketRight');
+  expect(await order()).toEqual([...start.slice(1), start[0]]);
+
+  // Right-click → Send to back.
+  const q = await visiblePoint(page, 3);
+  await page.mouse.click(q.x, q.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Send to back' }).click();
+  expect(await order()).toEqual(start);
+
+  // Undo steps back through the moves.
+  await page.keyboard.press('Control+z');
+  expect(await order()).toEqual([...start.slice(1), start[0]]);
+
+  // Mosaics don't overlap, so there's nothing to show.
+  await page.locator('#toolbar [data-a=surprise]').click();
+  await page.locator('#stage-canvas').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.inspector h1')).toHaveText('Photo');
+  await expect(layer).toBeHidden();
+  expect(errors).toEqual([]);
+});
