@@ -182,7 +182,7 @@ try {
         g.fillText('Free  ·  No sign-up  ·  Private', 70, 500);
         g.fillStyle = '#6b6b6b';
         g.font = '400 22px "Lato"';
-        g.fillText('walkingriver.com/collage-studio', 70, 575);
+        g.fillText('collagestudio.walkingriver.com', 70, 575);
       },
     });
 

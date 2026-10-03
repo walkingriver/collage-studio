@@ -1,6 +1,9 @@
-# Tests every push; on main, publishes the app/ folder to GitHub Pages as-is.
-# There is no build: the only change is stamping the service worker version with the commit id.
-name: Test and publish
+# Tests every push. On main, publishes redirect/ to the app's old GitHub Pages location
+# (https://walkingriver.com/collage-studio/), which now just sends visitors to the real
+# app at https://collagestudio.walkingriver.com/ (deployed separately, via Cloudflare
+# Pages — see README.md). Keeping this workflow around is what makes the old, already-
+# shared link keep working instead of breaking.
+name: Test and publish redirect
 
 on:
   push:
@@ -43,11 +46,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Stamp service worker version
-        run: sed -i "s/const VERSION = 'dev';/const VERSION = '${GITHUB_SHA::8}';/" app/sw.js && grep "const VERSION" app/sw.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: app
+          path: redirect
       - id: deployment
         uses: actions/deploy-pages@v4

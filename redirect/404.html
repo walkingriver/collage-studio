@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collage Studio has moved</title>
+  <link rel="canonical" href="https://collagestudio.walkingriver.com/">
+  <meta name="robots" content="noindex">
+  <style>
+    body { font: 16px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; max-width: 28rem; margin: 18vh auto; padding: 0 1.5rem; color: #1b1b1b; text-align: center; }
+    a { color: #0f6cbd; }
+  </style>
+  <script>
+    // Any page under the old /collage-studio/* location lands here (it's the project's
+    // 404 page). Send it to the matching path on the new domain, e.g.
+    // /collage-studio/privacy.html -> https://collagestudio.walkingriver.com/privacy.html
+    var path = location.pathname.replace(/^\/collage-studio/, '') || '/';
+    location.replace('https://collagestudio.walkingriver.com' + path + location.search + location.hash);
+  </script>
+</head>
+<body>
+  <p>Collage Studio has moved to<br><a href="https://collagestudio.walkingriver.com/">collagestudio.walkingriver.com</a></p>
+  <noscript><p><a href="https://collagestudio.walkingriver.com/">Open Collage Studio</a></p></noscript>
+</body>
+</html>
